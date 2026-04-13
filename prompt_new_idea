@@ -1,0 +1,15 @@
+Amar ekhon dorkar holo, ami je model ta dichi oi model er Encoder and Decoder and Capsule Routing er moddhe novelty contribution add kora 3 ta new novelty ideas/improvement ja kew kore nai ekhon. Emon kisu changes ana dorkar ja novelty hobe and ei dhoroner change ekhono kew kore nai, Karon holo eta amar Q1 journal er jonno dorkar. Ekhane jeta ache etao onek valo chilo tao amar journal er jonno ei changes dorkar. Ekta kotha boli tumi shudhu research korbe nah etake novelty related contribution hoy seta khel ragba, ami bolbo [ ekta Encoder ee hobe], [ekta Decoder ee hobe] [ and ekta Capsule Routing ee hobe]. Tin tai jeno new contribution hoy ja ekhono kew published kore nai. Keno ami tomake bar bar botachi eta amar IEEE Transaction dibo ami. ami amar My_Model_code.ipynb file ee sob ache. And ami 3 ta dataset nia kaj korchi[ twitter,bbc and 20ng_news]
+Saathe ami Cintra metrics , inter metrics and intra_inter metrics er code oo dilam Cintra_Cinter.ipynb.
+Full updated code diba khali analysis diba. Code diba implementation soho, jei 3 ta contribution er kotha bollam ja 2027-2030 porjonto state of the art model hobe topic modelling ee. Ami abar boltachi porapuri emon kaj diba jate ami ektu  analysis kore journal er jonno presentation ready korte pari. Full novelty implementation diba. Garbase jinis diba nah.
+
+
+NOVELTY 1 (Encoder): Spectral Graph-Infused Hierarchical Poincaré Encoder (SGP-E) — semantic graph convolution + hyperbolic latent manifold + Fisher-Rao information-geometry KL.
+NOVELTY 2 (Decoder): Sinkhorn Concept-Anchor Decoder (SCAD) — differentiable optimal transport decoder with learnable Mahalanobis cost and concept anchors.
+NOVELTY 3 (Capsule Routing): Entropic Momentum Graph-Diffused Capsule Routing (EMGD-CR) — momentum on routing logits + annealed entropic temperature + learnable topic-topic graph diffusion + Lorentzian squash.
+
+emon bhabe logic built korte hobe jodi amar model er performance gensim model use kore oo metrics gula check kore tao jemon Cv 0.95 up hobe , Cnpmi positive value : 0.76 up hobe Cumass and Cuci egula [ -2 theke -4 ] moddge thakbe. kiva ki korbo koro. 
+
+sobar sesh ee ekta architecture oo diba kivabe ki holo details jate buja jay and model Architecture oo thakbe. jeta ami amar Q1 journal paper ee add korbo.
+
+
+Main kitha holo ekhane je metrics gula dichi egula theke keno kom value howa jabe nah reason holo egula ami achieve korchi amar conference paper ee already. tai journal er jonno must be valo value lagbe and valid value jeta journal er jonno efficient.
