@@ -1,0 +1,86 @@
+output:
+[03:28:07] [INFO] Device: cuda
+[03:28:07] [INFO] Loading preprocessed artifacts ...
+[03:28:07] [INFO] Loading GloVe from /kaggle/input/datasets/pankaj078/word-p/glove.6B.100d.txt (dim=100) ...
+[03:28:15] [INFO]   GloVe vocabulary size: 400,000
+[03:28:15] [INFO]   Aligned coverage: 4,898/5,000 (98.0%)
+[03:28:15] [INFO] Computing PMI (vocab=5,000, window=10) ...
+[03:28:16] [INFO]   PMI progress: 5,000/25,473
+[03:28:16] [INFO]   PMI progress: 10,000/25,473
+[03:28:16] [INFO]   PMI progress: 15,000/25,473
+[03:28:16] [INFO]   PMI progress: 20,000/25,473
+[03:28:16] [INFO]   PMI progress: 25,000/25,473
+[03:28:17] [INFO]   PMI non-zero (positive) entries: 344,126
+[03:28:17] [INFO] Trainable parameters: 3,999,363
+[03:28:18] [INFO] ==============================================================
+[03:28:18] [INFO]                     TRAINING
+[03:28:18] [INFO] ==============================================================
+[03:28:24] [INFO] E  1 | T=1.484 | loss= 55.035 | rec= 38.16 | kl= 2.10 | coh= 4.194 | NPMI=-0.9379 | C_V=0.3717
+[03:28:24] [INFO]    ★ new best (score=0.2014)
+[03:28:35] [INFO] E  3 | T=1.451 | loss= 54.834 | rec= 38.16 | kl= 0.41 | coh= 4.163 | NPMI=-0.9249 | C_V=0.3661
+[03:28:35] [INFO]    ★ new best (score=0.2018)
+[03:28:51] [INFO] E  6 | T=1.404 | loss= 54.756 | rec= 38.16 | kl= 0.02 | coh= 4.147 | NPMI=-0.8820 | C_V=0.3665
+[03:28:51] [INFO]    ★ new best (score=0.2128)
+[03:29:08] [INFO] E  9 | T=1.359 | loss= 54.750 | rec= 38.16 | kl= 0.01 | coh= 4.146 | NPMI=-0.8939 | C_V=0.3621
+[03:29:25] [INFO] E 12 | T=1.315 | loss= 54.730 | rec= 38.16 | kl= 0.00 | coh= 4.141 | NPMI=-0.8847 | C_V=0.3609
+[03:29:38] [INFO] E 15 | T=1.272 | loss=  0.000 | rec=  0.00 | kl= 0.00 | coh= 0.000 | NPMI=-0.8819 | C_V=0.3620 | skipped=199
+[03:29:38] [ERROR] Every batch skipped at epoch 15. Aborting.
+[03:29:38] [INFO] Restored best checkpoint (score=0.2128)
+[03:29:38] [INFO] ==============================================================
+[03:29:38] [INFO]            FINAL EVALUATION (Topic Quality Gate)
+[03:29:38] [INFO] ==============================================================
+[03:29:38] [INFO] Quality gate — input topics: 20
+[03:29:38] [INFO]   after redundancy filter (Jaccard ≤ 0.3): 20
+[03:29:38] [WARNING] thresholds too strict — fallback to top-8
+[03:29:38] [INFO]   after coherence gate (NPMI ≥ 0.3, C_V ≥ 0.45): 8
+[03:29:38] [INFO] 
+📝 Final Topics (gated):
+[03:29:38] [INFO]   Topic  1: wisconsin, nevada, town, north_carolina, county, illinois, cincinnati, colorado, maine, ohio
+[03:29:38] [INFO]   Topic  2: prime_minister, powell, border_security, israel, soldier, army, netanyahu, joint, secretary_state, peace
+[03:29:38] [INFO]   Topic  3: size, gdp, projection, corporate, percentage, growth, profit, proportion, estimate, index
+[03:29:38] [INFO]   Topic  4: bob, mike, biden_harris, gary_player, donald, manager, george_floyd, tommy, george, coach
+[03:29:38] [INFO]   Topic  5: anybody, guess, stuff, wait, remember, fun, hey, happen, wonder, somebody
+[03:29:38] [INFO]   Topic  6: address, extensive, glimpse, text, new_book, document, text_message, narrative, internet, piece
+[03:29:38] [INFO]   Topic  7: prescription_drug_price, delivery, premium, standard, bus_service, equipment, phone, rocket, gas_price, drug_price
+[03:29:38] [INFO]   Topic  8: constitutional, democracy, supporter_maga_agenda, discrimination, socialist, leftist, religious_liberty, immigration, supreme_court, rule
+[03:29:38] [INFO] 
+📊 Final Metrics:
+[03:29:38] [INFO]   n_topics_raw      : 20
+[03:29:38] [INFO]   n_topics_gated    : 8
+[03:29:38] [INFO]   C_V               : 0.4217
+[03:29:38] [INFO]   C_NPMI            : -0.8021
+[03:29:38] [INFO]   U_Mass            : -3.3613
+[03:29:38] [INFO]   C_UCI             : 0.0
+[03:29:38] [INFO]   TopicDiversity    : 1.0
+[03:29:38] [INFO]   Intra_scaled      : 0.0989
+[03:29:38] [INFO]   Inter_cosine      : 0.4076
+[03:29:38] [INFO]   stopped_early     : False
+[03:29:38] [INFO]   stop_reason       : None
+[03:29:39] [INFO] ✓ artifacts -> /kaggle/working/twitter/train
+\n=== FINAL RESULTS ===
+  n_topics_raw: 20
+  n_topics_gated: 8
+  C_V: 0.4217
+  C_NPMI: -0.8021
+  U_Mass: -3.3613
+  C_UCI: 0.0
+  TopicDiversity: 1.0
+  Intra_scaled: 0.0989
+  Inter_cosine: 0.4076
+  stopped_early: False
+  stop_reason: None
+
+Ekhane evabe to hole hobe nah amar conference paper ee to er theke valo maan chilo ekhon ei maan nia ami kivabe boli amar journal paper er model valo. Sob theke main kotha holo kono metrics improvement nai. 
+
+## Target metrics (for Q1 journal)
+| Metric          | Target        |
+|-----------------|---------------|
+| C_V             | ≥ 0.95        |
+| C_NPMI          | ≥ 0.76        |
+| U_Mass          | ∈ [-1, -0.5]    |
+| C_UCI           | ≥ -0.5        |
+| Topic Diversity | ≥ 0.95        |
+| Intra-coherence | ≥ 0.95        |
+| Inter-coherence | ≤ 0.30        |
+
+kono tai thik vabe achieve korte partache nah. Valo bhabe sob dekho and must amar implementation lagbe jate eta target value gula achieve kore. Eta ajke implement korbei eto kisu koar por jodi soution nah hobe tahole to hobe na
