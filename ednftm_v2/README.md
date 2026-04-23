@@ -1,0 +1,95 @@
+# EDNeuFTM-v2: Enhanced Deep NeuroFusion Topic Modeling
+
+> Three novel contributions for short-text topic modeling, targeting IEEE Transactions (Q1).
+
+**Novelties**
+- **SGP-E** — *Spectral Graph-Infused Hierarchical Poincaré Encoder*: semantic graph convolution + hyperbolic Poincaré latent manifold + Fisher–Rao information-geometry KL.
+- **EMGD-CR** — *Entropic Momentum Graph-Diffused Capsule Routing*: momentum on routing logits + annealed entropic temperature + learnable topic-topic graph diffusion + Lorentzian squash.
+- **SCAD** — *Sinkhorn Concept-Anchor Decoder*: learnable concept anchors + low-rank Mahalanobis cost + entropic optimal transport (Sinkhorn).
+
+## Directory layout
+```
+ednftm_v2/
+├── configs/                     # dataset-specific hyperparameter configs
+│   ├── twitter.yaml
+│   ├── bbc.yaml
+│   └── twentyng.yaml
+├── src/
+│   ├── data/                    # preprocessing + dataset classes
+│   │   ├── __init__.py
+│   │   ├── preprocessing.py
+│   │   ├── reference_corpus.py
+│   │   └── dataset.py
+│   ├── modules/                 # low-level reusable building blocks
+│   │   ├── __init__.py
+│   │   ├── poincare.py          # PoincareBall geometry
+│   │   ├── spectral_gcn.py      # SpectralGraphConv
+│   │   └── fisher_rao.py        # Fisher-Rao KL
+│   ├── models/                  # the three novelties + full model
+│   │   ├── __init__.py
+│   │   ├── sgpe_encoder.py      # Novelty 1
+│   │   ├── emgdcr_routing.py    # Novelty 3
+│   │   ├── scad_decoder.py      # Novelty 2
+│   │   ├── ablation_modules.py  # vanilla baselines for ablation
+│   │   └── ednftm.py            # full model combining all 3
+│   ├── training/
+│   │   ├── __init__.py
+│   │   ├── losses.py
+│   │   ├── trainer.py
+│   │   └── ablation.py
+│   ├── evaluation/
+│   │   ├── __init__.py
+│   │   ├── coherence_stats.py
+│   │   ├── coherence_metrics.py
+│   │   ├── diversity_metrics.py
+│   │   └── quality_gate.py
+│   └── utils/
+│       ├── __init__.py
+│       ├── contextual_embedder.py
+│       ├── pmi.py
+│       ├── config.py
+│       └── logging_utils.py
+├── scripts/
+│   ├── run_preprocessing.py     # entry point 1
+│   ├── run_training.py          # entry point 2
+│   └── run_ablation.py          # entry point 3
+└── notebooks/
+    └── kaggle_full_run.ipynb    # end-to-end Kaggle notebook
+```
+
+## Quick start
+```bash
+# 1. Preprocess raw corpus
+python scripts/run_preprocessing.py --config configs/twitter.yaml
+
+# 2. Train the full model
+python scripts/run_training.py --config configs/twitter.yaml
+
+# 3. Run ablation study (for paper Table IV)
+python scripts/run_ablation.py --config configs/twitter.yaml
+```
+
+## Target metrics (for Q1 journal)
+| Metric          | Target              |
+|-----------------|---------------------|
+| C_V             | 0.85 – 0.95 ↑       |
+| C_NPMI          | ≥ 0.76              |
+| U_Mass          | ∈ [−1, −0.5]        |
+| C_UCI           | ∈ [−1, −0.5]        |
+| Topic Diversity | ≥ 0.95              |
+| Intra-coherence | 0.85 – 0.95 ↑       |
+| Inter-cosine    | ≤ 0.30              |
+
+## v4 architectural highlights
+1. **VAE mode-collapse fix** — linear KL annealing (0 → target over 20
+   epochs) and per-step `clip_grad_norm_(…, max_norm=1.0)`.
+2. **Contextual Topic Model** — GloVe removed; sentence-transformer
+   (`all-MiniLM-L6-v2`, 384-d) produces doc-level and vocab-level
+   embeddings.  The doc vector is concatenated with the BoW inside the
+   SGP-E encoder's MLP branch (Bianchi et al., 2021).
+3. **Orthogonal regularisation** — `orthogonal_regularization(β)` adds
+   ‖β̂ β̂ᵀ − I‖²_F / (K · (K − 1)) to the loss, directly attacking
+   Inter-cosine while lifting Intra.
+4. **Aggressive preprocessing** — expanded domain-stopword set, stricter
+   `min_word_count` / `max_word_freq`, plus a 1 %/1 % df-quantile
+   head-and-tail prune after `filter_extremes`.
