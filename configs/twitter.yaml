@@ -1,0 +1,74 @@
+# ============================================================================
+#  Twitter config v4 - contextual + anti-collapse + orthogonal diversity
+#
+#  Key v4 changes (from v3)
+#  -------------------------
+#  * glove_path removed; contextual_model switches in the sentence-
+#    transformer backbone.  Use a Twitter-specific RoBERTa if available
+#    (e.g. 'cardiffnlp/twitter-roberta-base').
+#  * embed_dim bumped from 100 (GloVe) -> 384 (MiniLM).
+#  * kl_warmup_epoch = 20 (linear 0 -> target).
+#  * grad_clip fixed at 1.0 globally.
+#  * Added loss_weights.ortho (orthogonal regularization on beta).
+#  * Aggressive preprocessing filters to improve U_Mass.
+# ============================================================================
+
+dataset:
+  name: twitter
+  input_file:         "/kaggle/input/datasets/pankaj078/topic-model-dt/tweets_dataset.txt"
+  contextual_model:   "sentence-transformers/all-MiniLM-L6-v2"
+  work_dir:           "/kaggle/working/twitter"
+
+preprocessing:
+  min_word_len:      3
+  min_doc_len:       3
+  min_word_count:    10         # was 5  - drop rarer words more aggressively
+  max_word_freq:     0.40       # was 0.70 - drop ubiquitous tokens
+  max_vocab:         5000
+  bigram_min_count:  15
+  bigram_threshold:  15.0
+  use_trigrams:      true
+  trigram_threshold: 12.0
+  keep_verbs:        false
+  ref_window_size:   10
+
+model:
+  embed_dim:        384         # MiniLM dim; trainer also reads from word_embeds
+  hidden_dim:       256
+  topic_dim:        15
+  dropout:          0.20
+  poincare_c:       1.0
+  poincare_scale:   0.05
+  fisher_rao_lam:   0.05
+  routing_iters:    3
+  routing_momentum: 0.90
+  scad_rank:        20
+  sinkhorn_iters:   8
+
+training:
+  batch_size:       128
+  epochs:           80
+  lr:               0.0005
+  weight_decay:     0.00001
+  grad_clip:        1.0
+  temp_start:       1.00
+  temp_end:         0.50
+  kl_warmup_epoch:  20          # linear anneal 0 -> 1 over 20 epochs
+
+loss_weights:
+  recon:  1.0
+  kl:     0.05
+  coh:    2.0
+  div:    0.5
+  red:    1.0
+  ortho:  1.0
+  ortho_mode: cosine
+
+evaluation:
+  top_n_words:      10
+  gate_min_npmi:    0.25
+  gate_min_cv:      0.45
+  gate_max_jaccard: 0.30
+  gate_min_topics:  8
+
+seed: 42
