@@ -1,0 +1,75 @@
+# ============================================================================
+#  Twitter config v4 — contextual + orthogonal regularisation.
+#
+#  KEY CHANGES FROM v3
+#  ───────────────────
+#  • GloVe path removed.  Encoder + decoder use Sentence-Transformer
+#    embeddings (model: all-MiniLM-L6-v2, 384-dim).
+#  • kl_warmup_epoch: 30 → 20 (matches the spec for KL annealing).
+#  • Aggressive vocabulary filtering:
+#       min_word_count   : 5  → 10
+#       max_word_freq    : 0.70 → 0.50
+#       extra_min_count  : 0  → 5      (second-pass hapax sweep)
+#  • Added orthogonal regularisation weight (loss_weights.orth = 1.0).
+# ============================================================================
+
+dataset:
+  name: twitter
+  input_file: "/kaggle/input/datasets/pankaj078/topic-model-dt/tweets_dataset.txt"
+  work_dir:   "/kaggle/working/twitter"
+
+preprocessing:
+  min_word_len:      3
+  min_doc_len:       3
+  min_word_count:    10
+  max_word_freq:     0.50
+  max_vocab:         5000
+  extra_min_count:   5
+  bigram_min_count:  10
+  bigram_threshold:  15.0
+  use_trigrams:      true
+  trigram_threshold: 12.0
+  keep_verbs:        false
+  ref_window_size:   10
+
+model:
+  ctx_model:        "sentence-transformers/all-MiniLM-L6-v2"
+  embed_dim:        384
+  hidden_dim:       256
+  topic_dim:        15
+  dropout:          0.20
+  poincare_c:       1.0
+  poincare_scale:   0.05
+  fisher_rao_lam:   0.05
+  routing_iters:    3
+  routing_momentum: 0.90
+  scad_rank:        32
+  sinkhorn_iters:   8
+
+training:
+  batch_size:       128
+  epochs:           80
+  lr:               0.0005
+  weight_decay:     0.00001
+  grad_clip:        1.0
+  temp_start:       1.00
+  temp_end:         0.50
+  kl_warmup_epoch:  20
+  eval_every:       2
+
+loss_weights:
+  recon:  1.0
+  kl:     0.05
+  coh:    2.0
+  div:    0.5
+  red:    1.0
+  orth:   1.0
+
+evaluation:
+  top_n_words:      10
+  gate_min_npmi:    0.30
+  gate_min_cv:      0.50
+  gate_max_jaccard: 0.25
+  gate_min_topics:  8
+
+seed: 42
