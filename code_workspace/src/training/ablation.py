@@ -1,6 +1,6 @@
 """
 ============================================================================
- src/training/ablation.py
+ src/training/ablation.py  [REWRITE — v4 / Contextual]
  ---------------------------------------------------------------------------
  Ablation study runner — produces Table IV of the paper.
 
@@ -12,6 +12,10 @@
    no_sgpe      VanillaMLP    EMGD-CR                 SCAD
    no_emgd      SGP-E         VanillaDynamicRouting   SCAD
    no_scad      SGP-E         EMGD-CR                 VanillaSoftmaxDecoder
+
+ v4: GloVe replaced with sentence-transformer embeddings.  Contextual
+ document vectors are forwarded to the SGP-E encoder; vanilla MLP encoder
+ (the no_sgpe ablation) still uses BoW only by design.
 ============================================================================
 """
 from __future__ import annotations
@@ -33,7 +37,9 @@ from ..models import (
 )
 from ..data                    import make_dataloader
 from ..utils.logging_utils     import get_logger
-from ..utils.glove_loader      import load_glove_aligned
+from ..utils.contextual_embeddings import (
+    encode_vocabulary, encode_documents, get_contextual_dim,
+)
 from ..utils.pmi               import compute_pmi_matrix
 from ..evaluation.coherence_stats   import CoherenceStats
 from ..evaluation.coherence_metrics import c_npmi, c_v, c_umass, c_uci
@@ -41,10 +47,21 @@ from ..evaluation.diversity_metrics import topic_diversity
 from ..evaluation.quality_gate      import apply_quality_gate
 from .losses  import (
     reconstruction_loss, coherence_loss,
-    diversity_loss, redundancy_loss,
+    diversity_loss, redundancy_loss, orthogonal_regularization,
 )
 
 _LOG = get_logger(__name__)
+
+
+def _cfg_get(node, key, default):
+    if hasattr(node, key):
+        return getattr(node, key)
+    if hasattr(node, "get"):
+        try:
+            return node.get(key, default)
+        except Exception:
+            return default
+    return default
 
 
 # =============================================================================
@@ -55,9 +72,19 @@ class _AblationWrapper(nn.Module):
         super().__init__()
         self.encoder = encoder
         self.decoder = decoder
+        # SGPEncoder exposes ctx_dim; vanilla MLP doesn't.
+        self._encoder_has_ctx = hasattr(encoder, "ctx_dim")
 
-    def forward(self, x: torch.Tensor, temperature: float = 1.0):
-        z_h, theta, mu, logvar, kl = self.encoder(x, temperature=temperature)
+    def forward(self,
+                x:     torch.Tensor,
+                x_ctx: torch.Tensor | None = None,
+                temperature: float = 1.0):
+        if self._encoder_has_ctx:
+            z_h, theta, mu, logvar, kl = self.encoder(
+                x, x_ctx=x_ctx, temperature=temperature,
+            )
+        else:
+            z_h, theta, mu, logvar, kl = self.encoder(x, temperature=temperature)
         beta = self.decoder()
         recon = theta @ beta
         return recon, theta, beta, mu, logvar, kl
@@ -67,10 +94,18 @@ class _AblationWrapper(nn.Module):
         self.eval()
         return self.decoder().detach().cpu()
 
+    @property
+    def topic_weight(self) -> torch.Tensor:
+        if hasattr(self.decoder, "concept_anchors"):
+            return self.decoder.concept_anchors
+        return self.decoder.beta_raw      # VanillaSoftmaxDecoder
+
 
 def _build_variant(variant: str, cfg, V: int,
                    word_embeds: torch.Tensor,
                    pmi: torch.Tensor,
+                   ctx_dim: int,
+                   embed_dim: int,
                    device: torch.device) -> _AblationWrapper:
     """Build the model for a specific ablation variant."""
     m = cfg.model
@@ -93,14 +128,15 @@ def _build_variant(variant: str, cfg, V: int,
                          dropout_rate=m.dropout,
                          poincare_c=m.poincare_c,
                          poincare_scale=m.poincare_scale,
-                         fisher_rao_lam=m.fisher_rao_lam)
+                         fisher_rao_lam=m.fisher_rao_lam,
+                         ctx_dim=ctx_dim)
         enc.set_adj_norm(pmi)
 
     # ── decoder ──
     if variant == "no_scad":
         dec = VanillaSoftmaxDecoder(m.topic_dim, V)
     else:
-        dec = SCADecoder(m.topic_dim, V, m.embed_dim, word_embeds,
+        dec = SCADecoder(m.topic_dim, V, embed_dim, word_embeds,
                          rank=m.scad_rank, sinkhorn_n=m.sinkhorn_iters)
 
     return _AblationWrapper(enc, dec).to(device)
@@ -112,6 +148,8 @@ def _build_variant(variant: str, cfg, V: int,
 def _train_variant(variant: str, cfg, V: int, loader,
                    word_embeds: torch.Tensor,
                    pmi: torch.Tensor,
+                   ctx_dim: int,
+                   embed_dim: int,
                    stats: CoherenceStats,
                    emb_dict: Dict[str, np.ndarray],
                    dictionary: Dictionary,
@@ -121,38 +159,56 @@ def _train_variant(variant: str, cfg, V: int, loader,
     _LOG.info(f"  ABLATION VARIANT: {variant.upper()}")
     _LOG.info(f"{'=' * 60}")
 
-    model = _build_variant(variant, cfg, V, word_embeds, pmi, device)
-    opt   = torch.optim.Adam(model.parameters(),
-                             lr=cfg.training.lr,
-                             weight_decay=cfg.training.weight_decay)
+    model = _build_variant(variant, cfg, V, word_embeds, pmi,
+                           ctx_dim, embed_dim, device)
+    opt   = torch.optim.AdamW(model.parameters(),
+                              lr=cfg.training.lr,
+                              weight_decay=cfg.training.weight_decay)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=ablation_epochs)
     pmi_dev = pmi.to(device)
+
+    kl_warmup = int(_cfg_get(cfg.training, "kl_warmup_epoch", 20))
+    ortho_w   = float(_cfg_get(cfg.loss_weights, "ortho", 1.0))
+    grad_clip = float(_cfg_get(cfg.training, "grad_clip", 1.0))
 
     for epoch in range(1, ablation_epochs + 1):
         model.train()
         frac = epoch / ablation_epochs
         T    = cfg.training.temp_start * (cfg.training.temp_end / cfg.training.temp_start) ** frac
-        kl_w = cfg.loss_weights.kl * min(1.0, epoch / 10)
 
-        for x_norm, x_raw in loader:
-            x_norm = x_norm.to(device); x_raw = x_raw.to(device)
-            recon, theta, beta, mu, logvar, kl = model(x_norm, temperature=T)
+        # Linear KL anneal 0 → target over kl_warmup epochs.
+        beta_anneal = min(1.0, epoch / max(1, kl_warmup))
+        kl_w        = cfg.loss_weights.kl * beta_anneal
 
-            L_rec = reconstruction_loss(recon, x_raw)
-            L_coh = coherence_loss(beta, pmi_dev, top_n=15)
-            L_div = diversity_loss(beta, top_n=25)
-            L_red = redundancy_loss(beta)
+        for x_norm, x_raw, x_ctx in loader:
+            x_input = torch.log1p(x_raw.to(device))
+            x_raw   = x_raw.to(device)
+            x_ctx   = x_ctx.to(device)
+
+            recon, theta, beta, mu, logvar, kl = model(
+                x_input, x_ctx=x_ctx, temperature=T,
+            )
+
+            L_rec   = reconstruction_loss(recon, x_raw) / V
+            L_coh   = coherence_loss(beta, pmi_dev)
+            L_div   = diversity_loss(beta)
+            L_red   = redundancy_loss(beta)
+            L_ortho = orthogonal_regularization(model.topic_weight)
 
             loss = (cfg.loss_weights.recon * L_rec
-                    + kl_w                 * kl
-                    + cfg.loss_weights.coh * L_coh
-                    + cfg.loss_weights.div * L_div
-                    + cfg.loss_weights.red * L_red)
+                    + kl_w                   * kl
+                    + cfg.loss_weights.coh   * L_coh
+                    + cfg.loss_weights.div   * L_div
+                    + cfg.loss_weights.red   * L_red
+                    + ortho_w                * L_ortho)
+
+            if not torch.isfinite(loss):
+                opt.zero_grad(); continue
 
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(),
-                                           cfg.training.grad_clip)
+                                           max_norm=grad_clip)
             opt.step()
 
         sched.step()
@@ -168,7 +224,7 @@ def _train_variant(variant: str, cfg, V: int, loader,
     topics_gated = apply_quality_gate(
         topics, stats, emb_dict,
         top_n    = cfg.evaluation.top_n_words,
-        min_npmi = 0.25,        # relaxed for ablation, so all variants report
+        min_npmi = 0.25,
         min_cv   = 0.40,
         max_jac  = 0.30,
         min_keep = 5,
@@ -185,9 +241,10 @@ def _train_variant(variant: str, cfg, V: int, loader,
                                    cfg.evaluation.top_n_words), 4),
         "C_UCI":     round(c_uci(topics_gated, stats,
                                  cfg.evaluation.top_n_words), 4),
-        "Diversity": round(topic_diversity(topics_gated, 25), 4),
+        "Diversity": round(topic_diversity(topics_gated,
+                                           cfg.evaluation.top_n_words), 4),
     }
-    _LOG.info(f"→ {results}")
+    _LOG.info(f"-> {results}")
     return results
 
 
@@ -210,12 +267,27 @@ def run_ablation_suite(cfg, variants: List[str] = None,
         ref_windows = pickle.load(f)
 
     V = len(dictionary)
-    word_embeds = load_glove_aligned(cfg.dataset.glove_path, dictionary,
-                                     dim=cfg.model.embed_dim)
+
+    # ---- contextual embeddings ----
+    st_model = _cfg_get(cfg.model, "contextual_model",
+                        "sentence-transformers/all-MiniLM-L6-v2")
+    ctx_dim   = get_contextual_dim(st_model)
+    embed_dim = ctx_dim                                # SCAD operates in ctx space
+
+    vocab_cache = os.path.join(preproc_dir, f"ctx_vocab_{embed_dim}.pt")
+    doc_cache   = os.path.join(preproc_dir, f"ctx_docs_{embed_dim}.pt")
+    word_embeds = encode_vocabulary(dictionary, model_name=st_model,
+                                    device=device, cache_path=vocab_cache)
+    doc_embeds  = encode_documents(docs, model_name=st_model,
+                                   device=device, cache_path=doc_cache)
+
     pmi = compute_pmi_matrix(docs, dictionary,
                              window=cfg.preprocessing.ref_window_size)
 
-    loader = make_dataloader(bow, batch_size=cfg.training.batch_size)
+    loader = make_dataloader(bow,
+                             batch_size=cfg.training.batch_size,
+                             ctx_embeds=doc_embeds,
+                             ctx_dim=ctx_dim)
     vocab_set = set(dictionary.token2id.keys())
     stats     = CoherenceStats(ref_windows, vocab=vocab_set)
     emb_dict  = {w: word_embeds[dictionary.token2id[w]].numpy()
@@ -224,6 +296,7 @@ def run_ablation_suite(cfg, variants: List[str] = None,
     all_results = []
     for v in variants:
         res = _train_variant(v, cfg, V, loader, word_embeds, pmi,
+                             ctx_dim, embed_dim,
                              stats, emb_dict, dictionary, device,
                              ablation_epochs=ablation_epochs)
         all_results.append(res)
@@ -243,5 +316,5 @@ def run_ablation_suite(cfg, variants: List[str] = None,
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(all_results, f, indent=2)
-    _LOG.info(f"✓ ablation results -> {out_path}")
+    _LOG.info(f"ablation results -> {out_path}")
     return all_results

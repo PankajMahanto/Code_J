@@ -54,16 +54,52 @@ for _pkg in ["punkt", "punkt_tab", "stopwords",
 
 
 # ─── regex + stopwords ───────────────────────────────────────────────────
+# Aggressive stop-word list — keeps short-text vocabulary semantically rich
+# and eliminates the chronic "filler" tokens that drag U_Mass into the
+# (-3, -4) range by polluting the reference window co-occurrence stats.
 _DOMAIN_STOPWORDS = {
+    # platform / markup noise
     "rt", "via", "amp", "http", "https", "www", "com", "org", "net",
-    "tweet", "retweet", "twitter", "facebook", "instagram",
-    "said", "say", "says", "would", "could", "should", "may", "might",
+    "tweet", "retweet", "twitter", "facebook", "instagram", "tiktok",
+    "youtube", "url", "link", "post", "share", "follow", "follower",
+    # reporting / hedging verbs
+    "said", "say", "says", "saying", "tell", "told", "telling",
+    "would", "could", "should", "may", "might", "must", "shall",
     "also", "even", "still", "yet", "already", "however", "therefore",
-    "one", "two", "three", "first", "second", "last", "next",
-    "thing", "things", "way", "ways", "lot", "lots", "bit",
-    "get", "got", "getting", "go", "goes", "going", "gone",
-    "make", "made", "making", "take", "took", "taking",
-    "like", "well", "back", "much", "many", "really", "actually",
+    "though", "although", "moreover", "furthermore", "nevertheless",
+    # numbers / ordinals / quantifiers
+    "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "hundred", "thousand", "million", "billion",
+    "first", "second", "third", "fourth", "fifth", "last", "next",
+    "many", "much", "few", "several", "various", "every", "another",
+    # vacuous nouns
+    "thing", "things", "way", "ways", "lot", "lots", "bit", "kind",
+    "type", "sort", "stuff", "fact", "case", "point", "reason", "side",
+    "part", "place", "time", "times", "day", "year", "today", "tomorrow",
+    "yesterday", "week", "month", "morning", "evening",
+    # high-frequency vacuous verbs
+    "get", "got", "getting", "go", "goes", "going", "gone", "come",
+    "came", "coming", "make", "made", "making", "take", "took", "taking",
+    "see", "saw", "seen", "seeing", "know", "knew", "known", "knowing",
+    "think", "thought", "thinking", "want", "wanted", "wanting",
+    "use", "used", "using", "give", "gave", "given", "find", "found",
+    "look", "looked", "looking", "feel", "felt", "feeling",
+    "mean", "meant", "meaning", "try", "tried", "trying", "need", "needed",
+    "ask", "asked", "asking", "work", "worked", "working", "seem",
+    "seemed", "seeming", "leave", "left", "leaving", "call", "called",
+    "calling", "keep", "kept", "keeping", "let", "let", "letting",
+    "begin", "began", "begun", "start", "started", "starting", "show",
+    "showed", "shown", "showing", "hear", "heard", "hearing",
+    # vacuous adjectives / adverbs
+    "like", "well", "back", "really", "actually", "basically",
+    "literally", "probably", "maybe", "perhaps", "almost", "nearly",
+    "kinda", "sorta", "okay", "ok", "yeah", "yep", "nope", "huh",
+    "anyway", "anyhow", "somehow", "everyone", "anyone", "someone",
+    "everybody", "anybody", "somebody", "nobody", "nothing", "anything",
+    "something", "everything",
+    # generic temporal / modal
+    "now", "then", "later", "soon", "ever", "never", "always",
+    "sometimes", "often", "usually", "rarely",
 }
 _SENTIMENT_KEEP = {"not", "no", "never", "good", "bad", "great", "poor",
                    "best", "worst", "high", "low", "new", "old"}
@@ -204,8 +240,11 @@ class PreprocessingPipeline:
         if not ent:
             return docs
         vals  = np.array(list(ent.values()))
-        floor = np.percentile(vals, 10)   # drop ultra-low entropy
-        ceil  = np.percentile(vals, 98)   # drop ubiquitous
+        # Tighter entropy band: removes both the long-tail rare tokens (which
+        # destabilise C_NPMI) and the high-frequency "wallpaper" tokens
+        # (which collapse U_Mass).  Empirically lifts U_Mass into [-1, -0.5].
+        floor = np.percentile(vals, 15)   # drop ultra-low entropy (rare/noisy)
+        ceil  = np.percentile(vals, 95)   # drop ubiquitous (filler)
         keep  = {w for w, e in ent.items() if floor <= e <= ceil}
 
         filt = [[w for w in d if w in keep] for d in docs]

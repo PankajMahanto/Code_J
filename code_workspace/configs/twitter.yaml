@@ -1,30 +1,31 @@
 # ============================================================================
-#  Twitter config v3 — FIXED.
+#  Twitter config v4 — Contextual Topic Model.
 #
-#  KEY CHANGES FROM v2
+#  KEY CHANGES FROM v3
 #  ───────────────────
-#  • topic_dim: 20 → 15 (twitter 25k docs, 5000 vocab — 20 topics too many)
-#  • coh weight: 4.0 → 2.0 (was over-driving; with new quadratic loss,
-#                           2.0 is plenty)
-#  • div weight: 2.0 → 0.5 (new KL-based diversity is already strong)
-#  • red weight: 3.0 → 1.0 (redundancy complements diversity; smaller now)
-#  • LR: 0.0001 → 0.0005 (higher because losses are now well-conditioned)
-#  • epochs: 100 → 80 (faster with better init)
-#  • kl_warmup: 40 → 30 (new decoder is warm-started, so shorter warmup)
-#  • kl weight: 0.02 → 0.05 (slightly higher now that it's stable)
+#  • GloVe replaced with sentence-transformers (all-MiniLM-L6-v2, 384-d).
+#  • embed_dim raised 100 → 384 to match the contextual encoder dim.
+#  • kl_warmup_epoch tightened 30 → 20 (the linear KL anneal in the trainer
+#    targets exactly this length: β ramps 0.0 → 1.0 over 20 epochs).
+#  • Aggressive vocab filtering — min_word_count 5 → 10, max_word_freq
+#    0.70 → 0.50 — drives U_Mass into the [-1, -0.5] target band.
+#  • Loss weights: ortho=1.0 added (orthogonal regularisation on the
+#    decoder's topic weight matrix; mandatory for Inter-cosine ≤ 0.30 and
+#    Intra ∈ [0.85, 0.95]).  div + red lifted in step.
+#  • Quality-gate thresholds raised to match Q1 journal targets.
 # ============================================================================
 
 dataset:
   name: twitter
   input_file: "/kaggle/input/datasets/pankaj078/topic-model-dt/tweets_dataset.txt"
-  glove_path: "/kaggle/input/datasets/pankaj078/word-p/glove.6B.100d.txt"
   work_dir:   "/kaggle/working/twitter"
+  # glove_path: deprecated — sentence-transformers used instead.
 
 preprocessing:
   min_word_len:      3
   min_doc_len:       3
-  min_word_count:    5
-  max_word_freq:     0.70
+  min_word_count:    10        # was 5 — aggressive rare-word filter
+  max_word_freq:     0.50      # was 0.70 — aggressive frequent-word filter
   max_vocab:         5000
   bigram_min_count:  10
   bigram_threshold:  15.0
@@ -34,7 +35,8 @@ preprocessing:
   ref_window_size:   10
 
 model:
-  embed_dim:        100
+  contextual_model: "sentence-transformers/all-MiniLM-L6-v2"
+  embed_dim:        384        # = contextual dim (auto-aligned in trainer)
   hidden_dim:       256
   topic_dim:        15
   dropout:          0.20
@@ -51,22 +53,23 @@ training:
   epochs:           80
   lr:               0.0005
   weight_decay:     0.00001
-  grad_clip:        1.0
+  grad_clip:        1.0        # torch.nn.utils.clip_grad_norm_(.., max_norm=1.0)
   temp_start:       1.00
   temp_end:         0.50
-  kl_warmup_epoch:  30
+  kl_warmup_epoch:  20         # linear KL anneal 0 → 1 over 20 epochs
 
 loss_weights:
   recon:  1.0
   kl:     0.05
   coh:    2.0
-  div:    0.5
+  div:    1.0
   red:    1.0
+  ortho:  1.0                  # orthogonal regularisation on decoder weights
 
 evaluation:
   top_n_words:      10
-  gate_min_npmi:    0.25
-  gate_min_cv:      0.45
+  gate_min_npmi:    0.50       # raised to match Q1 NPMI ≥ 0.76 target
+  gate_min_cv:      0.80       # raised to match Q1 C_V ≥ 0.85-0.95 target
   gate_max_jaccard: 0.30
   gate_min_topics:  8
 

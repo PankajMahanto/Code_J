@@ -7,14 +7,14 @@
 dataset:
   name: twentyng
   input_file: "/kaggle/input/datasets/pankaj078/topic-model-dt/20newsgroups_dataset.txt"
-  glove_path: "/kaggle/input/datasets/pankaj078/word-p/glove.6B.100d.txt"
   work_dir:   "/kaggle/working/twentyng"
+  # glove_path: deprecated — sentence-transformers used instead.
 
 preprocessing:
   min_word_len:      3
   min_doc_len:       8
-  min_word_count:    10
-  max_word_freq:     0.50
+  min_word_count:    15          # raised — aggressive rare-word filter
+  max_word_freq:     0.40        # lowered — aggressive frequent-word filter
   max_vocab:         5000
   bigram_min_count:  20
   bigram_threshold:  10.0
@@ -24,7 +24,8 @@ preprocessing:
   ref_window_size:   10
 
 model:
-  embed_dim:        100
+  contextual_model: "sentence-transformers/all-MiniLM-L6-v2"
+  embed_dim:        384          # = contextual dim
   hidden_dim:       384
   topic_dim:        20
   dropout:          0.20
@@ -41,10 +42,10 @@ training:
   epochs:           100
   lr:               0.0003
   weight_decay:     0.00001
-  grad_clip:        5.0
+  grad_clip:        1.0
   temp_start:       2.00
   temp_end:         0.40
-  kl_warmup_epoch:  15
+  kl_warmup_epoch:  20           # linear KL anneal 0 → 1 over 20 epochs
 
 loss_weights:
   recon:  1.0
@@ -52,11 +53,12 @@ loss_weights:
   coh:    5.0
   div:    3.0
   red:    3.0
+  ortho:  1.0                    # orthogonal regularisation on decoder weights
 
 evaluation:
   top_n_words:      10
-  gate_min_npmi:    0.40
-  gate_min_cv:      0.55
+  gate_min_npmi:    0.55
+  gate_min_cv:      0.80
   gate_max_jaccard: 0.25
   gate_min_topics:  10
 

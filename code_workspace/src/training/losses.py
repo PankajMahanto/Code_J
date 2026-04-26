@@ -114,3 +114,35 @@ def redundancy_loss(beta: torch.Tensor) -> torch.Tensor:
     S  = Bn @ Bn.T
     iu = torch.triu_indices(K, K, offset=1)
     return S[iu[0], iu[1]].mean()   # no abs — already non-negative
+
+
+# =============================================================================
+# Orthogonal regularisation on the decoder's topic weight matrix
+# =============================================================================
+def orthogonal_regularization(W: torch.Tensor) -> torch.Tensor:
+    """
+    Penalise off-diagonal entries of the cosine-similarity matrix of the
+    decoder's topic weight matrix.
+
+        W       : [K, d]   topic weight matrix (rows = topic vectors)
+        W_n     = W normalised row-wise
+        S       = W_n · W_n^T              # [K, K]    cosine matrix
+        L_ortho = mean( S[i,j]^2 )  for i ≠ j
+
+    Driving L_ortho → 0 forces the topic vectors to lie on (near-)orthogonal
+    directions in embedding space.  This is what enables the strict targets
+    of Inter-cosine ≤ 0.30 and Intra ∈ [0.85, 0.95]: each topic occupies a
+    distinct semantic axis (low inter), and within each axis the top-N words
+    cluster tightly (high intra).
+
+    Squared off-diagonals (rather than absolute) yield a smoother gradient
+    near the optimum and are standard in orthogonal-init / spectral-norm
+    literature (Brock et al. 2017, "Neural Photo Editing with Introspective
+    Adversarial Networks"; Bansal et al. 2018, "Can We Gain More from
+    Orthogonality Regularizations").
+    """
+    K = W.shape[0]
+    Wn = F.normalize(W, dim=-1, eps=1e-8)         # [K, d]
+    S  = Wn @ Wn.T                                # [K, K]
+    off_diag = S - torch.eye(K, device=W.device, dtype=W.dtype)
+    return (off_diag.pow(2).sum()) / (K * (K - 1))

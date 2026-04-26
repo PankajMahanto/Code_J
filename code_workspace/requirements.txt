@@ -6,3 +6,4 @@ gensim==4.3.2
 nltk>=3.8.0
 pyyaml>=6.0
 tqdm>=4.65.0
+sentence-transformers>=2.6.0

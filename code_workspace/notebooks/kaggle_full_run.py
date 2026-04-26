@@ -11,7 +11,7 @@
 # ╚══════════════════════════════════════════════════════════════════════════╝
 """
 # Install deps
-!pip install -q gensim==4.3.2 pyyaml
+!pip install -q gensim==4.3.2 pyyaml sentence-transformers
 
 # Download NLTK resources once
 import nltk
@@ -42,9 +42,10 @@ CFG_PATH = f'{PROJECT_ROOT}/configs/{DATASET}.yaml'
 with open(CFG_PATH) as f:
     cfg = yaml.safe_load(f)
 
-# Point to your Kaggle input files (change these to your actual dataset IDs)
+# Point to your Kaggle input files (change these to your actual dataset IDs).
+# NOTE: GloVe is no longer required — sentence-transformers is downloaded
+# automatically (cached under ~/.cache/torch/sentence_transformers).
 cfg['dataset']['input_file'] = '/kaggle/input/twitter-data/tweets_dataset.txt'
-cfg['dataset']['glove_path'] = '/kaggle/input/glove6b100d/glove.6B.100d.txt'
 cfg['dataset']['work_dir']   = f'/kaggle/working/{DATASET}'
 
 with open(CFG_PATH, 'w') as f:
@@ -108,17 +109,19 @@ from src.models import (
 )
 
 torch.manual_seed(0)
-B, V, K, d, H = 4, 200, 8, 50, 128
+B, V, K, d, H, C = 4, 200, 8, 50, 128, 384
 dummy_embed = torch.randn(V, d) * 0.1
 dummy_pmi   = torch.randn(V, V) * 0.5
 
 model = EDNeuFTMv2(vocab_size=V, topic_dim=K,
                    embed_dim=d, hidden_dim=H,
                    word_embeds=dummy_embed,
-                   pmi_matrix=dummy_pmi)
+                   pmi_matrix=dummy_pmi,
+                   ctx_dim=C)
 
-x = torch.rand(B, V)
-recon, theta, beta, mu, logvar, kl = model(x, temperature=1.0)
+x     = torch.rand(B, V)
+x_ctx = torch.randn(B, C)
+recon, theta, beta, mu, logvar, kl = model(x, x_ctx=x_ctx, temperature=1.0)
 print('recon :', recon.shape)
 print('theta :', theta.shape, 'row sums ≈ 1:', theta.sum(-1).mean().item())
 print('beta  :', beta.shape,  'row sums ≈ 1:', beta.sum(-1).mean().item())
