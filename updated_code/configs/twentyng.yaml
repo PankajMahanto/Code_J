@@ -1,0 +1,66 @@
+# ============================================================================
+#  20 Newsgroups dataset configuration  — Q1 journal target.
+#  Stats: 18,759 docs | vocab=5,000 | avg_doc_len=34.67 | sparsity=0.995
+#  Longest documents among the three — most room for hierarchy
+# ============================================================================
+
+dataset:
+  name: twentyng
+  input_file: "/kaggle/input/datasets/pankaj078/topic-model-dt/20newsgroups_dataset.txt"
+  work_dir:   "/kaggle/working/twentyng"
+
+preprocessing:
+  min_word_len:      3
+  min_doc_len:       8
+  min_word_count:    15
+  max_word_freq:     0.45
+  max_vocab:         5000
+  bigram_min_count:  20
+  bigram_threshold:  10.0
+  use_trigrams:      true
+  trigram_threshold: 8.0
+  keep_verbs:        true
+  ref_window_size:   10
+  entropy_low_pct:   15
+  entropy_high_pct:  95
+
+model:
+  contextual_model: "sentence-transformers/all-MiniLM-L6-v2"
+  embed_dim:        384
+  hidden_dim:       384
+  topic_dim:        20
+  dropout:          0.20
+  poincare_c:       1.0
+  poincare_scale:   0.10
+  fisher_rao_lam:   0.10
+  routing_iters:    5
+  routing_momentum: 0.90
+  scad_rank:        32
+  sinkhorn_iters:   20
+
+training:
+  batch_size:       64
+  epochs:           100
+  lr:               0.0003
+  weight_decay:     0.00001
+  grad_clip:        1.0
+  temp_start:       2.00
+  temp_end:         0.40
+  kl_warmup_epoch:  20
+
+loss_weights:
+  recon:  1.0
+  kl:     1.0
+  coh:    5.0
+  div:    3.0
+  red:    3.0
+  ortho:  1.0
+
+evaluation:
+  top_n_words:      10
+  gate_min_npmi:    0.40
+  gate_min_cv:      0.55
+  gate_max_jaccard: 0.25
+  gate_min_topics:  10
+
+seed: 42

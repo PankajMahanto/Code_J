@@ -1,0 +1,74 @@
+# ============================================================================
+#  Twitter config — Q1 journal target.
+#
+#  Key changes from the prior collapsed run
+#  ────────────────────────────────────────
+#  • Replaced GloVe-100d with sentence-transformer all-MiniLM-L6-v2 (384d).
+#    For Twitter you can swap to cardiffnlp/twitter-roberta-base-sentiment-
+#    latest (768d) without any other code changes.
+#  • KL annealing window: 20 epochs, linear 0.0 -> 1.0
+#  • New orthogonal-regularization weight on decoder.weight
+#  • Aggressive preprocessing: min_word_count 5 -> 10, max_word_freq 0.7 -> 0.5
+#  • Tighter entropy band on context-entropy filter
+# ============================================================================
+
+dataset:
+  name: twitter
+  input_file: "/kaggle/input/datasets/pankaj078/topic-model-dt/tweets_dataset.txt"
+  work_dir:   "/kaggle/working/twitter"
+
+preprocessing:
+  min_word_len:      3
+  min_doc_len:       3
+  min_word_count:    10           # was 5  — drop rare words harder
+  max_word_freq:     0.50         # was 0.70 — drop ubiquitous words harder
+  max_vocab:         5000
+  bigram_min_count:  10
+  bigram_threshold:  15.0
+  use_trigrams:      true
+  trigram_threshold: 12.0
+  keep_verbs:        false
+  ref_window_size:   10
+  entropy_low_pct:   15           # drop bottom 15 % entropy (was 10)
+  entropy_high_pct:  95           # drop top   5 % entropy (was top 2 %)
+
+model:
+  contextual_model: "sentence-transformers/all-MiniLM-L6-v2"  # 384-dim
+  embed_dim:        384           # auto-aligned to contextual_model dim
+  hidden_dim:       256
+  topic_dim:        15
+  dropout:          0.20
+  poincare_c:       1.0
+  poincare_scale:   0.05
+  fisher_rao_lam:   0.05
+  routing_iters:    3
+  routing_momentum: 0.90
+  scad_rank:        32
+  sinkhorn_iters:   8
+
+training:
+  batch_size:       128
+  epochs:           80
+  lr:               0.0005
+  weight_decay:     0.00001
+  grad_clip:        1.0           # torch.nn.utils.clip_grad_norm_(.., 1.0)
+  temp_start:       1.00
+  temp_end:         0.50
+  kl_warmup_epoch:  20            # linear KL anneal 0 -> kl_target over 20 ep
+
+loss_weights:
+  recon:  1.0
+  kl:     1.0                     # target weight after warmup is 1.0
+  coh:    2.0
+  div:    0.5
+  red:    1.0
+  ortho:  1.0                     # NEW: orthogonal regularization on β
+
+evaluation:
+  top_n_words:      10
+  gate_min_npmi:    0.25
+  gate_min_cv:      0.45
+  gate_max_jaccard: 0.30
+  gate_min_topics:  8
+
+seed: 42
